@@ -1,0 +1,16 @@
+# Python virtual environment
+backend/venv/
+backend/__pycache__/
+backend/instance/
+backend/uploads/
+
+# Node modules
+frontend/node_modules/
+frontend/dist/
+
+# Local database
+backend/notes.db
+
+# OS specific
+.DS_Store
+Thumbs.db
