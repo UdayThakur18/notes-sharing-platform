@@ -1,17 +1,16 @@
 import os
-import pdfplumber  # Make sure to run: pip install pdfplumber
+import pdfplumber
 from flask import Flask, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime
 from werkzeug.utils import secure_filename
-from transformers import pipeline # Make sure to run: pip install transformers torch
+from transformers import pipeline
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 app = Flask(__name__)
 CORS(app)
 
-# Configuration for File Uploads
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -22,15 +21,22 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# --- AI Setup ---
-# Using a faster, distilled model suitable for student laptops
 model_name = "sshleifer/distilbart-cnn-12-6"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
-summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
-
-# --- Models ---
+try:
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    
+    summarizer = pipeline(
+        "summarization", 
+        model=model, 
+        tokenizer=tokenizer,
+        force_bos_token_id=0
+    )
+    print("AI Model loaded successfully!")
+except Exception as e:
+    print(f"AI Model failed to load: {e}")
+    summarizer = None
 
 class Note(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -48,7 +54,6 @@ class Ticket(db.Model):
 with app.app_context():
     db.create_all()
 
-# --- Routes ---
 
 @app.route('/upload', methods=['POST'])
 def upload_note():
