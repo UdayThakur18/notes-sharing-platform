@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { motion, AnimatePresence } from "framer-motion";
 import "./App.css";
 
 function App() {
@@ -8,10 +9,7 @@ function App() {
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState("");
   const [ticketQuery, setTicketQuery] = useState("");
-
-  // New states for AI
-  const [loadingAI, setLoadingAI] = useState(null); // Stores ID of note being summarized
-  const [summary, setSummary] = useState("");
+  const [loadingAI, setLoadingAI] = useState(null);
 
   const fetchNotes = async (query = "") => {
     try {
@@ -32,14 +30,11 @@ function App() {
     e.preventDefault();
     if (!file || !title)
       return alert("Please provide both a title and a file.");
-
     const formData = new FormData();
     formData.append("file", file);
     formData.append("title", title);
-
     try {
       await axios.post("http://127.0.0.1:5000/upload", formData);
-      alert("Upload Successful!");
       setTitle("");
       setFile(null);
       fetchNotes();
@@ -49,20 +44,16 @@ function App() {
   };
 
   const handleSummarize = async (noteId, filename) => {
-    setLoadingAI(noteId); // Start loading for this specific card
-    setSummary("");
+    setLoadingAI(noteId);
     try {
       const res = await axios.get(
         `http://127.0.0.1:5000/summarize/${filename}`,
       );
-      setSummary(res.data.summary);
-      alert("AI Summary: " + res.data.summary);
+      alert("✨ AI Summary: " + res.data.summary);
     } catch (err) {
-      alert(
-        "AI summarization failed. Make sure the file contains readable text.",
-      );
+      alert("Summarization failed.");
     } finally {
-      setLoadingAI(null); // Stop loading
+      setLoadingAI(null);
     }
   };
 
@@ -75,42 +66,68 @@ function App() {
 
   return (
     <div className="App">
-      <h1>Resource Sharing Hub</h1>
+      {/* Background Glows */}
+      <div className="bg-glow-1"></div>
+      <div className="bg-glow-2"></div>
+
+      <motion.h1
+        initial={{ opacity: 0, y: -50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="main-title"
+      >
+        Resource Sharing <span>Hub</span>
+      </motion.h1>
 
       {/* SEARCH */}
-      <div className="search-container">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="search-container"
+      >
         <input
           type="text"
           className="search-input"
-          placeholder="🔍 Search for notes (e.g. Data Structures)..."
-          onChange={(e) => {
-            setSearch(e.target.value);
-            fetchNotes(e.target.value);
-          }}
+          placeholder="🔍 Search the archives..."
+          onChange={(e) => fetchNotes(e.target.value)}
         />
-      </div>
+      </motion.div>
 
       {/* UPLOAD FORM */}
-      <div className="upload-section">
-        <h3>Upload New Note</h3>
-        <form onSubmit={handleUpload}>
+      <motion.div whileHover={{ scale: 1.01 }} className="upload-section glass">
+        <h3>Upload New Intelligence</h3>
+        <form onSubmit={handleUpload} className="futuristic-form">
           <input
-            placeholder="Note Title (e.g. OS Unit 2)"
+            placeholder="Document Title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
-          <input type="file" onChange={(e) => setFile(e.target.files[0])} />
+          <input
+            type="file"
+            className="file-input"
+            onChange={(e) => setFile(e.target.files[0])}
+          />
           <button type="submit" className="btn-primary">
-            Upload Resource
+            Initialize Upload
           </button>
         </form>
-      </div>
+      </motion.div>
 
       {/* DISPLAY NOTES */}
       <div className="grid">
-        {notes.length > 0 ? (
-          notes.map((n) => (
-            <div key={n.id} className="card">
+        <AnimatePresence>
+          {notes.map((n, index) => (
+            <motion.div
+              key={n.id}
+              layout
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.4, delay: index * 0.05 }}
+              whileHover={{ y: -10 }}
+              className="card glass"
+            >
               <div className="card-badge">{n.type.toUpperCase()}</div>
               <h3>{n.title}</h3>
               <div className="card-actions">
@@ -120,37 +137,40 @@ function App() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  View File
+                  Access File
                 </a>
                 <button
                   className="btn-ai"
                   onClick={() => handleSummarize(n.id, n.file_url)}
                   disabled={loadingAI === n.id}
                 >
-                  {loadingAI === n.id ? "✨ AI Thinking..." : "✨ Summarize"}
+                  {loadingAI === n.id ? "Processing..." : "✨ AI Summary"}
                 </button>
               </div>
-            </div>
-          ))
-        ) : (
-          <p>No notes found. Be the first to upload!</p>
-        )}
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
 
       {/* TICKET SYSTEM */}
-      <div className="ticket-section">
-        <h3>Can't find a note? Demand it here:</h3>
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className="ticket-section glass"
+      >
+        <h3>Request Specific Data</h3>
         <div className="ticket-form">
           <input
             value={ticketQuery}
             onChange={(e) => setTicketQuery(e.target.value)}
-            placeholder="Describe the notes you need..."
+            placeholder="What knowledge are you seeking?"
           />
           <button onClick={handleTicket} className="btn-secondary">
-            Raise Ticket
+            Submit Ticket
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
