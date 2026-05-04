@@ -18,13 +18,25 @@ body {
 
 .App {
   position: relative;
-  max-width: 1200px;
+  max-width: 1400px; /* Increased to accommodate sidebar */
   margin: 0 auto;
   padding: 40px 20px;
   z-index: 1;
 }
 
-/* Background Animated Glows */
+/* --- Layout Structure --- */
+.main-layout {
+  display: flex;
+  gap: 30px;
+  align-items: flex-start;
+  margin-top: 20px;
+}
+
+.content-area {
+  flex: 3; /* Takes up more space */
+}
+
+/* --- Background Animated Glows --- */
 .bg-glow-1,
 .bg-glow-2 {
   position: fixed;
@@ -47,6 +59,44 @@ body {
   background: var(--accent-alt);
 }
 
+/* --- Sidebar Styling --- */
+.ticket-sidebar {
+  flex: 1;
+  padding: 25px;
+  position: sticky;
+  top: 40px;
+  max-height: 85vh;
+  overflow-y: auto;
+  border-radius: 20px;
+}
+
+.ticket-sidebar h3 {
+  margin-top: 0;
+  color: var(--accent);
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.ticket-item {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 15px;
+  border-radius: 12px;
+  margin-bottom: 15px;
+  border-left: 3px solid var(--accent-alt);
+}
+
+.status-pill {
+  font-size: 0.65rem;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(157, 80, 187, 0.1);
+  color: var(--accent-alt);
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+/* --- Typography --- */
 .main-title {
   font-size: 3.5rem;
   text-align: center;
@@ -54,8 +104,11 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 40px;
+  padding-top: 20px;
+  line-height: 1.2;
 }
 
+/* --- Glassmorphism --- */
 .glass {
   background: var(--card-bg);
   backdrop-filter: blur(12px);
@@ -63,6 +116,7 @@ body {
   border-radius: 20px;
 }
 
+/* --- Components --- */
 .search-input {
   width: 100%;
   background: var(--card-bg);
@@ -99,6 +153,7 @@ body {
   border-radius: 10px;
 }
 
+/* --- Grid & Cards --- */
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -109,6 +164,7 @@ body {
   padding: 25px;
   position: relative;
 }
+
 .card-badge {
   position: absolute;
   top: 15px;
@@ -120,15 +176,27 @@ body {
   border-radius: 20px;
 }
 
+/* --- Action Buttons --- */
+.card-actions {
+  display: grid;
+  grid-template-columns: 1fr auto auto; /* Space for View, Download, and AI */
+  gap: 8px;
+  margin-top: 15px;
+}
+
 .btn-primary,
 .btn-ai,
-.btn-secondary {
-  padding: 12px 20px;
+.btn-secondary,
+.btn-download {
+  padding: 10px 15px;
   border-radius: 10px;
   border: none;
   cursor: pointer;
   font-weight: bold;
   transition: 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-primary {
@@ -139,9 +207,22 @@ body {
   background: linear-gradient(45deg, #6e48aa, #9d50bb);
   color: white;
 }
-.btn-ai:hover {
-  box-shadow: 0 0 15px #9d50bb;
+.btn-ai:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
+
+.btn-download {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: white;
+  text-decoration: none;
+}
+.btn-download:hover {
+  background: var(--accent);
+  color: #000;
+}
+
 .btn-view {
   color: #ccc;
   text-decoration: none;
@@ -150,8 +231,13 @@ body {
   border-radius: 10px;
   display: block;
   text-align: center;
+  font-weight: bold;
+}
+.btn-view:hover {
+  background: var(--border);
 }
 
+/* --- Bottom Sections --- */
 .ticket-section {
   padding: 30px;
   margin-top: 60px;

@@ -1,15 +1,20 @@
 import os
 import pdfplumber
+import pytesseract # For Image OCR
+from PIL import Image # For Image processing
 from flask import Flask, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime
 from werkzeug.utils import secure_filename
-from transformers import pipeline
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
 
 app = Flask(__name__)
 CORS(app)
+
+# Point Python to your Tesseract installation
+# Change this path if you installed Tesseract in a different folder
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
@@ -26,7 +31,6 @@ model_name = "sshleifer/distilbart-cnn-12-6"
 try:
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-    
     summarizer = pipeline(
         "summarization", 
         model=model, 
@@ -38,6 +42,7 @@ except Exception as e:
     print(f"AI Model failed to load: {e}")
     summarizer = None
 
+# --- Models ---
 class Note(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
@@ -54,6 +59,7 @@ class Ticket(db.Model):
 with app.app_context():
     db.create_all()
 
+# --- Routes ---
 
 @app.route('/upload', methods=['POST'])
 def upload_note():
@@ -91,7 +97,7 @@ def get_notes():
     
     return jsonify([{
         "id": n.id, "title": n.title, "description": n.description, 
-        "file_url": n.file_path, "type": n.file_type 
+        "file_url": n.file_url, "type": n.file_type 
     } for n in notes])
 
 @app.route('/summarize/<filename>')
@@ -103,25 +109,35 @@ def summarize_note(filename):
         if not os.path.exists(filepath):
             return jsonify({"error": "File not found"}), 404
 
-        # Extract text based on file type
-        if filename.endswith('.pdf'):
+        # 1. Handle Images (NEW)
+        if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+            text = pytesseract.image_to_string(Image.open(filepath))
+            
+        # 2. Handle PDFs
+        elif filename.lower().endswith('.pdf'):
             with pdfplumber.open(filepath) as pdf:
-                # Extracting text from first 2 pages to keep it fast
                 pages = pdf.pages[:2]
                 text = " ".join([p.extract_text() for p in pages if p.extract_text()])
+        
+        # 3. Handle Text files
         else:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 text = f.read()
 
-        if len(text) < 100:
-            return jsonify({"summary": "Content too short to summarize effectively."})
+        if len(text.strip()) < 30:
+            return jsonify({"summary": "Could not extract enough text to summarize."})
 
-        # Summarize the first 1000 characters for speed
+        # Process with AI
         summary = summarizer(text[:1000], max_length=130, min_length=30, do_sample=False)
         return jsonify({"summary": summary[0]['summary_text']})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/download/<filename>')
+def download_file(filename):
+    # as_attachment=True ensures the browser downloads the file instead of opening it
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
 
 @app.route('/ticket', methods=['POST'])
 def raise_ticket():
@@ -131,9 +147,13 @@ def raise_ticket():
     db.session.commit()
     return jsonify({"message": "Ticket raised"}), 201
 
-@app.route('/download/<filename>')
-def download_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+@app.route('/tickets', methods=['GET'])
+def get_tickets():
+    try:
+        tickets = Ticket.query.all()
+        return jsonify([{"id": t.id, "query": t.query, "status": t.status} for t in tickets]), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
