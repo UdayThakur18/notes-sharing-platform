@@ -7,13 +7,13 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime
 from werkzeug.utils import secure_filename
-from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
+from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
+import torch
 
 app = Flask(__name__)
 CORS(app)
 
-# Point Python to your Tesseract installation
-# Change this path if you installed Tesseract in a different folder
+# Point to your Tesseract installation
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 UPLOAD_FOLDER = 'uploads'
@@ -26,20 +26,24 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
+# --- AI Loading Logic ---
 model_name = "sshleifer/distilbart-cnn-12-6"
 
 try:
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-    summarizer = pipeline(
-        "summarization", 
-        model=model, 
-        tokenizer=tokenizer,
-        force_bos_token_id=0
-    )
-    print("AI Model loaded successfully!")
+    model.config.forced_bos_token_id = 0
+    
+    # Manual function to bypass the broken 'summarization' task check
+    def summarizer_function(text):
+        inputs = tokenizer(text, return_tensors="pt", max_length=1024, truncation=True)
+        summary_ids = model.generate(inputs["input_ids"], max_length=130, min_length=30, do_sample=False)
+        return [{"summary_text": tokenizer.decode(summary_ids[0], skip_special_tokens=True)}]
+
+    summarizer = summarizer_function
+    print("🚀 Nexus AI: Manual Model loaded successfully!")
 except Exception as e:
-    print(f"AI Model failed to load: {e}")
+    print(f"❌ Nexus AI: Load failed. Error: {e}")
     summarizer = None
 
 # --- Models ---
@@ -53,7 +57,7 @@ class Note(db.Model):
 
 class Ticket(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    query = db.Column(db.String(200), nullable=False)
+    query = db.Column(db.String(200), nullable=False) # This name conflicts with .query method
     status = db.Column(db.String(20), default="Pending")
 
 with app.app_context():
@@ -97,11 +101,13 @@ def get_notes():
     
     return jsonify([{
         "id": n.id, "title": n.title, "description": n.description, 
-        "file_url": n.file_url, "type": n.file_type 
+        "file_url": n.file_path, "type": n.file_type 
     } for n in notes])
 
 @app.route('/summarize/<filename>')
 def summarize_note(filename):
+    if not summarizer:
+        return jsonify({"error": "AI Model not available"}), 500
     try:
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         text = ""
@@ -109,39 +115,36 @@ def summarize_note(filename):
         if not os.path.exists(filepath):
             return jsonify({"error": "File not found"}), 404
 
-        # 1. Handle Images (NEW)
         if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
             text = pytesseract.image_to_string(Image.open(filepath))
-            
-        # 2. Handle PDFs
         elif filename.lower().endswith('.pdf'):
             with pdfplumber.open(filepath) as pdf:
                 pages = pdf.pages[:2]
                 text = " ".join([p.extract_text() for p in pages if p.extract_text()])
-        
-        # 3. Handle Text files
         else:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 text = f.read()
 
-        if len(text.strip()) < 30:
+        if not text or len(text.strip()) < 30:
             return jsonify({"summary": "Could not extract enough text to summarize."})
 
-        # Process with AI
-        summary = summarizer(text[:1000], max_length=130, min_length=30, do_sample=False)
+        # FIX: Call the manual function without the pipeline arguments
+        summary = summarizer(text[:1000]) 
         return jsonify({"summary": summary[0]['summary_text']})
 
     except Exception as e:
+        print(f"Summarize Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/download/<filename>')
 def download_file(filename):
-    # as_attachment=True ensures the browser downloads the file instead of opening it
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename, as_attachment=True)
 
 @app.route('/ticket', methods=['POST'])
 def raise_ticket():
     data = request.json
+    if not data or 'query' not in data:
+        return jsonify({"error": "Query required"}), 400
     new_ticket = Ticket(query=data['query'])
     db.session.add(new_ticket)
     db.session.commit()
@@ -150,9 +153,11 @@ def raise_ticket():
 @app.route('/tickets', methods=['GET'])
 def get_tickets():
     try:
-        tickets = Ticket.query.all()
+        # FIX: Use db.session.query to avoid conflict with the 'query' column name
+        tickets = db.session.query(Ticket).all()
         return jsonify([{"id": t.id, "query": t.query, "status": t.status} for t in tickets]), 200
     except Exception as e:
+        print(f"Ticket Fetch Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':

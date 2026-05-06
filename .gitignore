@@ -14,3 +14,9 @@ backend/notes.db
 # OS specific
 .DS_Store
 Thumbs.db
+
+venv/
+instance/
+__pycache__/
+uploads/
+*.db
